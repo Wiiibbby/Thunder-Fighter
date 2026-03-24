@@ -1,0 +1,5 @@
+{
+  "name": "雷霆战机",
+  "description": "A vertical scrolling shooter game framework built with HTML5 Canvas and React.",
+  "requestFramePermissions": []
+}
