@@ -1,11 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Pause, Play } from 'lucide-react';
 
 export default function App() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [gameOver, setGameOver] = useState(false);
-  const [gameStateReact, setGameStateReact] = useState<'StartMenu' | 'Playing' | 'GameOver' | 'Paused'>('StartMenu');
-  const isPausedRef = useRef(false);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -137,13 +134,7 @@ export default function App() {
 
     // 游戏状态 (Game state)
     let score = 0;
-    let gameState: 'StartMenu' | 'Playing' | 'GameOver' | 'Paused' = 'StartMenu';
-    
-    const setGameState = (newState: 'StartMenu' | 'Playing' | 'GameOver' | 'Paused') => {
-      gameState = newState;
-      setGameStateReact(newState);
-    };
-
+    let gameState: 'StartMenu' | 'Playing' | 'GameOver' = 'StartMenu';
     let screenShakeUntil = 0;
     let screenShakeMagnitude = 5;
 
@@ -466,8 +457,7 @@ export default function App() {
       const key = e.key.toLowerCase();
       
       if (gameState === 'StartMenu' && key === 'enter') {
-        setGameState('Playing');
-        isPausedRef.current = false;
+        gameState = 'Playing';
         // 清空敌机和子弹 (Clear enemies and bullets)
         enemies.length = 0;
         bullets.length = 0;
@@ -490,11 +480,6 @@ export default function App() {
         return;
       }
 
-      if ((key === 'p' || key === 'escape') && (gameState === 'Playing' || gameState === 'Paused')) {
-        isPausedRef.current = !isPausedRef.current;
-        return;
-      }
-
       if (keys.hasOwnProperty(key)) {
         keys[key as keyof typeof keys] = true;
       }
@@ -513,25 +498,11 @@ export default function App() {
     window.addEventListener('keyup', handleKeyUp);
 
     let animationFrameId: number;
-    let lastRealTime = Date.now();
-    let gameTime = 0;
+    const gameStartTime = Date.now();
 
     // 游戏主循环 (Game loop)
     const gameLoop = () => {
-      const currentRealTime = Date.now();
-      const deltaTime = currentRealTime - lastRealTime;
-      lastRealTime = currentRealTime;
-
-      if (gameState === 'Playing' && isPausedRef.current) {
-        setGameState('Paused');
-      } else if (gameState === 'Paused' && !isPausedRef.current) {
-        setGameState('Playing');
-      }
-
-      if (gameState === 'Playing') {
-        gameTime += deltaTime;
-      }
-      const now = gameTime;
+      const now = Date.now();
 
       // 1. 始终更新并绘制星空背景 (Always update and draw starry background)
       bgStars.forEach(star => {
@@ -561,11 +532,11 @@ export default function App() {
 
       // 应用屏幕抖动 (Apply screen shake)
       ctx.save();
-      if (gameState === 'Playing' && now < screenShakeUntil) {
+      if (now < screenShakeUntil) {
         const dx = (Math.random() - 0.5) * screenShakeMagnitude;
         const dy = (Math.random() - 0.5) * screenShakeMagnitude;
         ctx.translate(dx, dy);
-      } else if (now >= screenShakeUntil) {
+      } else {
         screenShakeMagnitude = 5; // 恢复默认抖动幅度 (Reset default magnitude)
       }
 
@@ -619,7 +590,7 @@ export default function App() {
         drawJet(ctx, CANVAS_WIDTH / 2 - 30, CANVAS_HEIGHT / 2 - 60, 60, 60, '#0066cc', false);
 
         // 闪烁的提示文字 (Blinking prompt text)
-        if (Math.floor(currentRealTime / 500) % 2 === 0) {
+        if (Math.floor(now / 500) % 2 === 0) {
           ctx.font = '20px monospace';
           ctx.fillStyle = '#ffffff';
           ctx.shadowBlur = 0;
@@ -636,7 +607,6 @@ export default function App() {
         
         if (!gameOver) {
           setGameOver(true);
-          setGameStateReact('GameOver');
         }
         // 绘制游戏结束画面 (Draw game over screen)
         ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
@@ -652,12 +622,11 @@ export default function App() {
       }
 
       // 2. 游戏进行中逻辑 (Playing state logic)
-      if (gameState === 'Playing') {
-        // 根据按键更新玩家位置 (Update player position based on keys)
-        if (keys.w) player.y -= player.speed;
-        if (keys.s) player.y += player.speed;
-        if (keys.a) player.x -= player.speed;
-        if (keys.d) player.x += player.speed;
+      // 根据按键更新玩家位置 (Update player position based on keys)
+      if (keys.w) player.y -= player.speed;
+      if (keys.s) player.y += player.speed;
+      if (keys.a) player.x -= player.speed;
+      if (keys.d) player.x += player.speed;
 
       // 限制玩家在画布范围内移动 (Constrain player to canvas bounds)
       if (player.x < 0) player.x = 0;
@@ -1092,15 +1061,14 @@ export default function App() {
         player.nextHealTime = now + 5000;
       }
 
-        // 更新粒子 (Update particles)
-        for (let i = particles.length - 1; i >= 0; i--) {
-          const p = particles[i];
-          p.x += p.vx;
-          p.y += p.vy;
-          p.life -= 16; // 假设 60fps，约 16ms 每帧
-          if (p.life <= 0) {
-            particles.splice(i, 1);
-          }
+      // 更新粒子 (Update particles)
+      for (let i = particles.length - 1; i >= 0; i--) {
+        const p = particles[i];
+        p.x += p.vx;
+        p.y += p.vy;
+        p.life -= 16; // 假设 60fps，约 16ms 每帧
+        if (p.life <= 0) {
+          particles.splice(i, 1);
         }
       }
 
@@ -1127,30 +1095,6 @@ export default function App() {
         }
       }
       ctx.restore();
-
-      // 绘制技能倒计时条 (Draw skill duration bars)
-      const barWidth = 40;
-      const barHeight = 4;
-      let barOffsetY = player.y + player.height + 10;
-      
-      if (now <= player.pierceTimer) {
-        const remaining = player.pierceTimer - now;
-        const ratio = Math.max(0, remaining / 5000); // 穿透持续 5000ms
-        ctx.fillStyle = 'rgba(255, 170, 0, 0.3)';
-        ctx.fillRect(player.x + (player.width - barWidth) / 2, barOffsetY, barWidth, barHeight);
-        ctx.fillStyle = '#ffaa00';
-        ctx.fillRect(player.x + (player.width - barWidth) / 2, barOffsetY, barWidth * ratio, barHeight);
-        barOffsetY += barHeight + 2;
-      }
-      
-      if (now <= player.invincibleTimer) {
-        const remaining = player.invincibleTimer - now;
-        const ratio = Math.max(0, remaining / 6000); // 无敌持续 6000ms
-        ctx.fillStyle = 'rgba(0, 255, 255, 0.3)';
-        ctx.fillRect(player.x + (player.width - barWidth) / 2, barOffsetY, barWidth, barHeight);
-        ctx.fillStyle = '#00ffff';
-        ctx.fillRect(player.x + (player.width - barWidth) / 2, barOffsetY, barWidth * ratio, barHeight);
-      }
 
       // 绘制子弹 (Draw bullets)
       bullets.forEach(bullet => {
@@ -1276,15 +1220,6 @@ export default function App() {
       // 恢复屏幕抖动的 translate (Restore screen shake translate)
       ctx.restore();
 
-      if (gameState === 'Paused') {
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
-        ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
-        ctx.fillStyle = 'white';
-        ctx.font = 'bold 40px monospace';
-        ctx.textAlign = 'center';
-        ctx.fillText('PAUSED', CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2);
-      }
-
       // 3. 请求下一帧 (Request next frame)
       animationFrameId = requestAnimationFrame(gameLoop);
     };
@@ -1310,17 +1245,6 @@ export default function App() {
           className="shadow-2xl shadow-blue-500/20 rounded-lg"
           style={{ display: 'block' }}
         />
-        {(gameStateReact === 'Playing' || gameStateReact === 'Paused') && (
-          <button
-            onClick={() => {
-              isPausedRef.current = !isPausedRef.current;
-            }}
-            className="absolute top-4 right-4 p-2 bg-white/10 hover:bg-white/20 rounded-full backdrop-blur-sm transition-colors border border-white/20 text-white z-10"
-            title={gameStateReact === 'Paused' ? "Resume" : "Pause"}
-          >
-            {gameStateReact === 'Paused' ? <Play size={24} /> : <Pause size={24} />}
-          </button>
-        )}
         {gameOver && (
           <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
             {/* 占位，对齐 Canvas 内部的文字位置 */}
